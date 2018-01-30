@@ -6,6 +6,7 @@ from nltk.util import ngrams
 from multiprocessing.dummy import Pool as ThreadPool
 #import pandas as pd
 from pandas import *
+from numpy import log
 
 
 def m1(corpus, n):
@@ -30,13 +31,21 @@ def m1(corpus, n):
     M1 = DataFrame(d).fillna(0)
     return M1
 
+def pmi(m):
+    P_xy = m / m.values.sum()
+    P_x = m.sum(axis=1) / m.values.sum()
+    P_y = m.sum(axis=0) / m.values.sum()
+    return np.log(P_xy.div(P_x, axis=1).div(P_y, axis=0))
+
 
 if __name__ == "__main__":
 
     #M1 = m1(brown, 5000)
     #M1.to_pickle('m1.pkl')
     M1 = pandas.read_pickle('m1.pkl')
-    # convert matrix into probabilities
-    P_x = M1.sum(axis=1) / M1.values.sum()
-    print(M1.values.sum())
-    print(P_x)
+    M1_plus = pmi(M1)
+    print(M1_plus['dog']['your'])
+    print(M1_plus['dog']['yellow'])
+    print(M1_plus['dog']['the'])
+    print(M1_plus['dog']['brown'])
+    print(M1_plus['dog']['never'])
