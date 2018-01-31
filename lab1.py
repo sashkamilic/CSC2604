@@ -113,7 +113,8 @@ if __name__ == "__main__":
     #freq_dict = nltk.FreqDist(w.lower() for w in corpora_iter)
     #words = [line.split()[0] for line in open(SIM_FILE).readlines()]
     #include_words = [w for w in words if freq_dict[w] >= 15]
-    #M1 = m1([brown, reuters], 5000, include_words=include_words)
+
+    #M1 = m1([brown, reuters], 5000)
     #M1.to_pickle('m1.pkl')
 
     # co-occurrance matrix
