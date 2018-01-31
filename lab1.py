@@ -1,25 +1,19 @@
 import itertools
 import nltk
-import re
-import scipy
-from tabulate import tabulate
-from collections import Counter, defaultdict
-from nltk.corpus import brown, reuters, stopwords
-from nltk.util import ngrams
-from multiprocessing import Pool
-#import pandas as pd
-
 import numpy as np
 import pandas as pd
-from numpy import log
-import time
-from functools import partial
+import re
+import scipy
+from collections import Counter, defaultdict
+from multiprocessing import Pool
+from nltk.corpus import brown, reuters
+from nltk.util import ngrams
+from tabulate import tabulate
+#import pandas as pd
 from sklearn.decomposition import TruncatedSVD
 
-import sys
-#np.set_printoptions(threshold=np.nan)
-
 SIM_FILE = "RG_word_sims.tsv"
+
 
 def m1(corpora, n, include_words=None):
     '''
@@ -86,12 +80,12 @@ def test(M):
     '''
     indices = M.index.values
     filelines = [line.strip().split() for line in open(SIM_FILE).readlines()]
-    sims_dict = dict([((w1,w2), float(s)) for (w1,w2,s) in filelines])
+    P = dict([((w1,w2), float(s)) for (w1,w2,s) in filelines])
 
     x = []
     y = []
 
-    for (w1, w2) in sims_dict.keys():
+    for (w1, w2) in P.keys():
 
         if w1 not in indices:
             #print('"{}" not in matrix'.format(w1))
@@ -105,7 +99,7 @@ def test(M):
         v2 = np.array(M.loc[[w2]])
 
         x.append(scipy.spatial.distance.cosine(v1, v2))
-        y.append(sims_dict[(w1, w2)])
+        y.append(P[(w1, w2)])
 
     x = np.array(x)
     y = np.array(y)
