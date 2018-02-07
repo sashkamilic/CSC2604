@@ -11,17 +11,19 @@ from nltk.util import ngrams
 from tabulate import tabulate
 #import pandas as pd
 from sklearn.decomposition import TruncatedSVD
+from gensim.models.word2vec import Word2Vec
 
 SIM_FILE = "RG_word_sims.tsv"
 
 
-def m1(corpora, n, include_words=None):
+def m1(corpora, n, include_words=None, preceeding=False):
     '''
     Construct a word-context vector model by collecting
     bigram counts for top-n words in the corpora.
 
     `include_words` - optional list of words to include along
     with top-n
+    `preceeding`    - count preceeding words as contexts
     '''
     corpora_iter = itertools.chain.from_iterable([c.words() for c in corpora])
     # Extract the 5000 most common English words
@@ -44,6 +46,13 @@ def m1(corpora, n, include_words=None):
 
     # convert bigram counts to cooccurance matrix
     c = Counter(bigrams)
+
+    if preceeding:
+        # reverse bigram tuples
+        bigrams_reversed = [(t[1], t[0]) for t in bigrams]
+        c2 = Counter(bigrams_reversed)
+        c.update(c2)
+
     d = defaultdict(lambda : defaultdict(int))
     for t,freq in c.items():
         d[t[1]][t[0]] = freq
@@ -73,29 +82,32 @@ def pmi(M, k=1, normalized=False):
     return pmi
 
 
-def test(M, sims):
+def test(M, sim_file):
     '''
     Compute Pearson correlation between similarity scores in
     `P` (dict in the form (word1, word2) -> float) and and
     cosine similarities in M
     '''
-    indices = M.index.values
+
+    filelines = [line.strip().split() for line in open(sim_file).readlines()]
+    P = dict([((w1,w2), float(s)) for (w1,w2,s) in filelines])
 
     x = []
     y = []
 
     for (w1, w2) in P.keys():
+        try:
+            if str(type(M)) == "<class 'pandas.core.frame.DataFrame'>":
+                v1 = np.array(M.loc[[w1]])
+                v2 = np.array(M.loc[[w2]])
+            elif str(type(M)) == "<class 'gensim.models.keyedvectors.KeyedVectors'>":
+                v1 = np.array(M[w1])
+                v2 = np.array(M[w2])
+            else:
+                raise TypeError('Unknown model type', str(type(M)))
 
-        if w1 not in indices:
-            #print('"{}" not in matrix'.format(w1))
+        except KeyError:
             continue
-
-        if w2 not in indices:
-            #print('"{}" not in matrix'.format(w2))
-            continue
-
-        v1 = np.array(M.loc[[w1]])
-        v2 = np.array(M.loc[[w2]])
 
         x.append(scipy.spatial.distance.cosine(v1, v2))
         y.append(P[(w1, w2)])
@@ -112,12 +124,12 @@ if __name__ == "__main__":
     #freq_dict = nltk.FreqDist(w.lower() for w in corpora_iter)
     #words = [line.split()[0] for line in open(SIM_FILE).readlines()]
     #include_words = [w for w in words if freq_dict[w] >= 15]
+    flatten = lambda l: [item for sublist in l for item in sublist]
+    RG_words = flatten([line.split()[0:2] for line in open(SIM_FILE).readlines()])
 
-    #M1 = m1([brown, reuters], 5000)
-    #M1.to_pickle('m1.pkl')
-
-    filelines = [line.strip().split() for line in open(SIM_FILE).readlines()]
-    P = dict([((w1,w2), float(s)) for (w1,w2,s) in filelines])
+    M1 = m1([brown, reuters], 5000, include_words=RG_words, preceeding=True)
+    #df.to_csv(r'm1.txt', header=None, index=None, sep=' ', mode='a')
+    M1.to_pickle('m1.pkl')
 
     # co-occurrance matrix
     M1 = pd.read_pickle('m1.pkl').to_dense()
@@ -140,14 +152,15 @@ if __name__ == "__main__":
 
         result = [name]
         # first test on non-truncated matrix
-        corr, pvalue = test(M, P)
+        corr, pvalue = test(M, SIM_FILE)
         result.append('{0:.3f} ({0:.3f})'.format(corr, pvalue))
+        print(result)
 
         for k in [10, 20, 50, 100]:
             svd = TruncatedSVD(n_components=k, algorithm="arpack")
             M_trunc = svd.fit_transform(scipy.sparse.csr_matrix(M))
             M_trunc = pd.DataFrame(data=M_trunc, index=M1.index.values)
-            corr, pvalue = test(M_trunc)
+            corr, pvalue = test(M_trunc, SIM_FILE)
             result.append('{0:.3f}'.format(corr))
 
         table.append(result)
