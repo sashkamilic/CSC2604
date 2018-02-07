@@ -73,14 +73,13 @@ def pmi(M, k=1, normalized=False):
     return pmi
 
 
-def test(M):
+def test(M, sims):
     '''
     Compute Pearson correlation between similarity scores in
-    Rubenstein and Goodenougth (1965) and cosine similarities in M
+    `P` (dict in the form (word1, word2) -> float) and and
+    cosine similarities in M
     '''
     indices = M.index.values
-    filelines = [line.strip().split() for line in open(SIM_FILE).readlines()]
-    P = dict([((w1,w2), float(s)) for (w1,w2,s) in filelines])
 
     x = []
     y = []
@@ -117,6 +116,9 @@ if __name__ == "__main__":
     #M1 = m1([brown, reuters], 5000)
     #M1.to_pickle('m1.pkl')
 
+    filelines = [line.strip().split() for line in open(SIM_FILE).readlines()]
+    P = dict([((w1,w2), float(s)) for (w1,w2,s) in filelines])
+
     # co-occurrance matrix
     M1 = pd.read_pickle('m1.pkl').to_dense()
     # pmi
@@ -138,7 +140,7 @@ if __name__ == "__main__":
 
         result = [name]
         # first test on non-truncated matrix
-        corr, pvalue = test(M)
+        corr, pvalue = test(M, P)
         result.append('{0:.3f} ({0:.3f})'.format(corr, pvalue))
 
         for k in [10, 20, 50, 100]:
@@ -146,7 +148,7 @@ if __name__ == "__main__":
             M_trunc = svd.fit_transform(scipy.sparse.csr_matrix(M))
             M_trunc = pd.DataFrame(data=M_trunc, index=M1.index.values)
             corr, pvalue = test(M_trunc)
-            result.append('{0:.3f} ({0:.3f})'.format(corr, pvalue))
+            result.append('{0:.3f}'.format(corr))
 
         table.append(result)
 
