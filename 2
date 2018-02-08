@@ -1,0 +1,102 @@
+import nltk
+import re
+import scipy
+from collections import Counter, defaultdict
+from nltk.corpus import brown
+from nltk.util import ngrams
+from multiprocessing.dummy import Pool as ThreadPool
+#import pandas as pd
+from pandas import *
+from numpy import log
+
+SIM_FILE = "RG_word_sims.tsv"
+
+def m1(corpus, n):
+    '''
+    Construct a word-context vector model by collecting
+    bigram counts for top-n words in corpus.
+    '''
+    # Extract the 5000 most common English words
+    freq_dict = nltk.FreqDist(w.lower() for w in corpus.words() if re.match('\w', w))
+    W = list(dict(freq_dict.most_common(n)).keys())
+
+    # Get bigrams from words in W
+    bigrams = ngrams([w.lower() for w in corpus.words()], 2)
+    bigrams = [t for t in bigrams if t[0] in W and t[1] in W]
+
+    # convert bigram counts to cooccurance matrix
+    c = Counter(bigrams)
+    d = defaultdict(lambda : defaultdict(int))
+    for t,freq in c.items():
+        d[t[1]][t[0]] = freq
+
+    M1 = DataFrame(d).fillna(0)
+    return M1
+
+def pmi(M):
+    P_xy = M / M.values.sum()
+    P_x = M.sum(axis=1) / M.values.sum()
+    P_y = M.sum(axis=0) / M.values.sum()
+    # smoothing
+    P_xy = P_xy + 1
+
+    print(P_xy['yeah'])
+    print(P_x[['yeah']])
+    print(P_y[['yeah']])
+
+    return np.log(P_xy.div(P_x, axis=1).div(P_y, axis=0))
+
+def test(M):
+    '''
+    Compute Pearson correlation between similarity scores in
+    Rubenstein and Goodenougth (1965) and cosine similarities in M
+    '''
+    filelines = [line.strip().split() for line in open(SIM_FILE).readlines()]
+    sims_dict = dict([((w1,w2), float(s)) for (w1,w2,s) in filelines])
+
+    x = []
+    y = []
+
+    for (w1, w2) in sims_dict.keys():
+
+        if w1 not in M:
+            #print('"{}" not in matrix'.format(w1))
+            continue
+        if w2 not in M:
+            #print('"{}" not in matrix'.format(w2))
+            continue
+
+        v1 = M[w1]
+        v2 = M[w2]
+        #print(v1)
+        #print(v2)
+        x.append(scipy.spatial.distance.cosine(v1, v2))
+        y.append(sims_dict[(w1, w2)])
+
+    x = np.array(x)
+    y = np.array(y)
+
+    print(x)
+    print(y)
+
+    return scipy.stats.pearsonr(x, y)
+
+
+if __name__ == "__main__":
+
+    #M1 = m1(brown, 5000)
+    #M1.to_pickle('m1.pkl')
+    M1 = pandas.read_pickle('m1.pkl')
+
+    #print(M1['yeah'].sum())
+    #print(M1[['yeah']].sum())
+
+    #df.loc[:, (df != 0).any(axis=0)]
+
+    #print(key)
+    #print(M1['yeah'].sum())
+    M1_plus = pmi(M1)
+    #print(M1_plus)
+    # try averaging cosign of context and word vectors (i.e. row/column vectors)
+    #print(test(M1))
+    #print(test(M1_plus))
