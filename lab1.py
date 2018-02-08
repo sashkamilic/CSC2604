@@ -100,7 +100,8 @@ def test(M, sim_file):
             if str(type(M)) == "<class 'pandas.core.frame.DataFrame'>":
                 v1 = np.array(M.loc[[w1]])
                 v2 = np.array(M.loc[[w2]])
-            elif str(type(M)) == "<class 'gensim.models.keyedvectors.KeyedVectors'>":
+            elif str(type(M)) == "<class 'gensim.models.keyedvectors.KeyedVectors'>" or \
+                str(type(M)) == "<class 'gensim.models.word2vec.Word2Vec'>":
                 v1 = np.array(M[w1])
                 v2 = np.array(M[w2])
             else:
@@ -109,7 +110,7 @@ def test(M, sim_file):
         except KeyError:
             continue
 
-        x.append(scipy.spatial.distance.cosine(v1, v2))
+        x.append(1 - scipy.spatial.distance.cosine(v1, v2))
         y.append(P[(w1, w2)])
 
     x = np.array(x)
@@ -124,12 +125,11 @@ if __name__ == "__main__":
     #freq_dict = nltk.FreqDist(w.lower() for w in corpora_iter)
     #words = [line.split()[0] for line in open(SIM_FILE).readlines()]
     #include_words = [w for w in words if freq_dict[w] >= 15]
-    flatten = lambda l: [item for sublist in l for item in sublist]
-    RG_words = flatten([line.split()[0:2] for line in open(SIM_FILE).readlines()])
-
-    M1 = m1([brown, reuters], 5000, include_words=RG_words, preceeding=True)
+    #flatten = lambda l: [item for sublist in l for item in sublist]
+    #RG_words = flatten([line.split()[0:2] for line in open(SIM_FILE).readlines()])
+    #M1 = m1([brown, reuters], 5000, include_words=RG_words, preceeding=True)
     #df.to_csv(r'm1.txt', header=None, index=None, sep=' ', mode='a')
-    M1.to_pickle('m1.pkl')
+    #M1.to_pickle('m1.pkl')
 
     # co-occurrance matrix
     M1 = pd.read_pickle('m1.pkl').to_dense()
@@ -143,8 +143,12 @@ if __name__ == "__main__":
     M1_ppmi = M1_plus.copy()
     M1_ppmi[M1_ppmi < 0] = 0
 
-    names = ['raw', 'pmi', 'pmi^2', 'npmi', 'ppmi']
-    Ms = [M1, M1_plus, M1_pmi2, M1_npmi, M1_ppmi]
+    #names = ['raw', 'pmi', 'pmi^2', 'npmi', 'ppmi']
+    #Ms = [M1, M1_plus, M1_pmi2, M1_npmi, M1_ppmi]
+    names = ['raw', 'pmi', 'ppmi']
+    Ms = [M1, M1_plus, M1_ppmi]
+
+    svd = TruncatedSVD(n_components=100, algorithm="arpack")
 
     header = ['measure', 'M1', 'M2_10', 'M2_20', 'M2_50', 'M2_100']
     table = []
@@ -153,15 +157,17 @@ if __name__ == "__main__":
         result = [name]
         # first test on non-truncated matrix
         corr, pvalue = test(M, SIM_FILE)
-        result.append('{0:.3f} ({0:.3f})'.format(corr, pvalue))
-        print(result)
+        result.append('{:.3f} ({:.3f})'.format(corr, pvalue))
+
+        M_trunc = svd.fit_transform(scipy.sparse.csr_matrix(M))
 
         for k in [10, 20, 50, 100]:
-            svd = TruncatedSVD(n_components=k, algorithm="arpack")
-            M_trunc = svd.fit_transform(scipy.sparse.csr_matrix(M))
-            M_trunc = pd.DataFrame(data=M_trunc, index=M1.index.values)
-            corr, pvalue = test(M_trunc, SIM_FILE)
-            result.append('{0:.3f}'.format(corr))
+            if k == 100:
+                df = pd.DataFrame(data=M_trunc, index=M1.index.values)
+            else:
+                df = pd.DataFrame(data=M_trunc[:,k], index=M1.index.values)
+            corr, pvalue = test(df, SIM_FILE)
+            result.append('{:.3f} ({:.3f})'.format(corr, pvalue))
 
         table.append(result)
 
